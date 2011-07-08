@@ -58,7 +58,7 @@ static inline bool endswitch_in() {
 
 namespace Clock {
   typedef unsigned short cycle_t;
-    
+
   static void init() {
     TCCR1B = (1<<CS12) | (1<<CS10);  // clk/1024
   }
@@ -95,7 +95,18 @@ public:
   Screen() : error_(ERR_NONE), motor_dir_(DIR_NEUTRAL), pos_(0) {
     /* nop */
   }
-  
+
+  // Go to the other endpos (if down, go up, if up, go down), if not
+  // already running
+  void toggle_screen_pos() {
+    if (motor_dir_ != DIR_NEUTRAL)
+      return;
+    if (up_stop_condition())
+      set_dir(DIR_DOWN);
+    else if (down_stop_condition())
+      set_dir(DIR_UP);
+  }
+
   // Set motor to given direction, but honor endpositions.
   void set_dir(Direction d) {
     if (d == motor_dir_)
@@ -167,6 +178,9 @@ public:
   // Check stop conditions and stops motor if so.
   // This method must be called regularly.
   void check_stop_conditions() {
+    // We need to make sure not to be interrupted by the rotation switch
+    // otherwise 16-bit numbers are mumbled.
+    cli();
     if (motor_dir_ != DIR_NEUTRAL
         && Clock::now() - last_update_time_ > Clock::ms_to_cycles(1000)) {
       // Wheel encoder failed or motor stuck: haven't received
@@ -182,6 +196,7 @@ public:
         || (motor_dir_ == DIR_DOWN && down_stop_condition())) {
       set_dir(DIR_NEUTRAL);
     }
+    sei();
   }
 
   inline ErrorType error() const { return error_; }
@@ -202,7 +217,7 @@ private:
 
   ErrorType error_;
   Direction motor_dir_;
-  volatile short pos_;  // volatile, because updated in ISR.    
+  volatile short pos_;  // volatile, because updated in ISR.
   volatile Clock::cycle_t last_update_time_;
 };
 
@@ -311,45 +326,22 @@ private:
   bool active_;
 };
 
-// We react on the on/off buttons to move the screen.
-// After these buttons have been pressed, it is possible as well to use the
-// up/down buttons on the remote control to control the screen.
-// Sometimes we want to control the screen but not affect the projector. So we
-// can press first the button that is idempotent wrt. the state of the projector
-// (i.e. press the 'on' button when it is already on) - afterwards we can use
-// the up/down buttons to send the actual command we want.
-// We need to make this time limited, because the user might use the remote
-// control to actually operate the projector - in that case we don't want to
-// have the screen move up/down while using these buttons :)
-static void handle_infrared(Monoflop *extra_buttons_active, Screen *screen) {
+// We react on the on/off buttons to move the screen. The 'on' button allows
+// to toggle the screen up/down (e.g. for a break while movie).
+static void handle_infrared(Screen *screen) {
   byte_t infrared_bytes[4] = {0, 0, 0, 0};
   if (read_infrared(infrared_bytes) != 4)
     return;
   switch (DecodeInfrared(infrared_bytes)) {
   case BUTTON_ON:
-    if (screen->error() == Screen::ERR_ROTATION) {
-      screen->go_home();
-    } else {
-      screen->set_dir(Screen::DIR_DOWN);
-      extra_buttons_active->trigger();
-    }
+    screen->toggle_screen_pos();
     break;
   case BUTTON_OFF:
     screen->set_dir(Screen::DIR_UP);
-    extra_buttons_active->trigger();
     break;
-  case BUTTON_UP:
-    screen->set_dir(extra_buttons_active->is_active()
-                    ? Screen::DIR_UP : Screen::DIR_NEUTRAL);
+  default:
+    // ignored.
     break;
-  case BUTTON_DOWN:
-    screen->set_dir(extra_buttons_active->is_active()
-                    ? Screen::DIR_DOWN : Screen::DIR_NEUTRAL);
-    break;
-  case BUTTON_UNKNOWN:
-    screen->set_dir(Screen::DIR_NEUTRAL);
-    break;
-  case BUTTON_SET:  break;  // ignored for now.
   }
 }
 
@@ -370,8 +362,6 @@ int main(void) {
   Screen screen;
   global_screen = &screen;  // referenced in interrupt handler.
 
-  Monoflop extra_buttons_active(Clock::ms_to_cycles(4000));
-
   // Enable comparator interrupt. It will give us the rotation tick events.
   ACSR |= (1<<ACIE);
   sei();
@@ -382,24 +372,21 @@ int main(void) {
 
   for (;;) {
     screen.check_stop_conditions();
-    extra_buttons_active.regular_check();
 
     if (!infrared_in()) {  // an IR transmission starts with low.
-      handle_infrared(&extra_buttons_active, &screen);
+      handle_infrared(&screen);
     }
     if (endswitch_in()) {
       screen.event_endswitch_triggered();
     }
     // LED output depends on the state of the screen
     switch (screen.error()) {
-    case Screen::ERR_NONE:
-      status_led(extra_buttons_active.is_active());
-      break;
+    case Screen::ERR_NONE: break;
     case Screen::ERR_SWITCH:
-      status_led(Clock::now() & 4096);  // slow blink.
+      status_led(Clock::now() & 4096);
       break;
     case Screen::ERR_ROTATION:
-      status_led(Clock::now() & 1024);  // fast blink.
+      status_led(Clock::now() & 8192);
       break;
     }
   }
