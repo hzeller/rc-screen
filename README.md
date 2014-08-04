@@ -23,7 +23,7 @@ Inputs
 Outputs
 -------
 
-   - motor driver in h-bridge configuration (ULN2003 or similar)
+   - motor driver in h-bridge configuration (754410 or similar)
    - bias-output for cny77 Schmitt-Trigger input.
    - status LED
 
