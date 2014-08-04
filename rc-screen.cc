@@ -179,7 +179,7 @@ public:
   // This method must be called regularly.
   void check_stop_conditions() {
     // We need to make sure not to be interrupted by the rotation switch
-    // otherwise 16-bit numbers are mumbled.
+    // otherwise 16-bit numbers are mixed up.
     cli();
     if (motor_dir_ != DIR_NEUTRAL
         && Clock::now() - last_update_time_ > Clock::ms_to_cycles(1000)) {
@@ -328,7 +328,7 @@ private:
 
 // We react on the on/off buttons to move the screen. The 'on' button allows
 // to toggle the screen up/down (e.g. for a break while movie).
-static void handle_infrared(Screen *screen) {
+static void handle_infrared(Screen *screen, Monoflop *special_keys_active) {
   byte_t infrared_bytes[4] = {0, 0, 0, 0};
   if (read_infrared(infrared_bytes) != 4)
     return;
@@ -338,6 +338,17 @@ static void handle_infrared(Screen *screen) {
     break;
   case BUTTON_OFF:
     screen->set_dir(Screen::DIR_UP);
+    // We activate the up/down buttons after 'off' for a couple of seconds.
+    // This is for operating the screen while the projector is off.
+    special_keys_active->trigger();
+    break;
+  case BUTTON_UP:
+    if (special_keys_active->is_active())
+      screen->set_dir(Screen::DIR_UP);
+    break;
+  case BUTTON_DOWN:
+    if (special_keys_active->is_active())
+      screen->set_dir(Screen::DIR_DOWN);
     break;
   default:
     // ignored.
@@ -366,27 +377,32 @@ int main(void) {
   ACSR |= (1<<ACIE);
   sei();
 
+  Monoflop special_keys_active(Clock::ms_to_cycles(4000));
+
   // until we know that the endswitch is working we keep this switched off.
   // We assume home position
   screen.go_home();
 
   for (;;) {
     screen.check_stop_conditions();
+    special_keys_active.regular_check();
 
     if (!infrared_in()) {  // an IR transmission starts with low.
-      handle_infrared(&screen);
+      handle_infrared(&screen, &special_keys_active);
     }
     if (endswitch_in()) {
       screen.event_endswitch_triggered();
     }
     // LED output depends on the state of the screen
     switch (screen.error()) {
-    case Screen::ERR_NONE: break;
+    case Screen::ERR_NONE:
+      status_led(special_keys_active.is_active());
+      break;
     case Screen::ERR_SWITCH:
-      status_led(Clock::now() & 4096);
+      status_led(Clock::now() & 1024);  // fast blink.
       break;
     case Screen::ERR_ROTATION:
-      status_led(Clock::now() & 8192);
+      status_led(Clock::now() & 8192);  // slow blink.
       break;
     }
   }
