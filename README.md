@@ -33,7 +33,8 @@ https://github.com/hzeller/postscript-hacks/blob/master/encoder-wheel.ps
 Here a (bad quality recorded) example:
 https://www.youtube.com/watch?v=lvHZYmplDkQ
 
-There is no PCB or something, just directly raster-boarded:
+There is no PCB or something, just directly raster-boarded; the screen is
+a IKEA Tupplur blind.
 
 ![Screen Assembly][assembly]
 
