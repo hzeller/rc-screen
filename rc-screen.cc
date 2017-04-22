@@ -1,4 +1,4 @@
-/*
+/* -*- mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; -*-
  * remote controlled screen.
  * (c) 2010 h.zeller@acm.org
  * This is free softare. Apache license.
@@ -57,23 +57,23 @@ static inline bool endswitch_in() {
 }
 
 namespace Clock {
-  typedef unsigned short cycle_t;
+typedef unsigned short cycle_t;
 
-  static void init() {
-    TCCR1B = (1<<CS12) | (1<<CS10);  // clk/1024
-  }
+static void init() {
+  TCCR1B = (1<<CS12) | (1<<CS10);  // clk/1024
+}
 
-  // The timer with aroud 7.8 kHz rolls over the 64k every 8.3 seconds: it
-  // makes only sense to do unsigned time comparisons <= 8.3 seconds.
-  // Returns clock ticks.
-  static cycle_t now() { return TCNT1; }
+// The timer with aroud 7.8 kHz rolls over the 64k every 8.3 seconds: it
+// makes only sense to do unsigned time comparisons <= 8.3 seconds.
+// Returns clock ticks.
+static cycle_t now() { return TCNT1; }
 
-  // Converts milliseconds into clock cycles. If you provide a constant
-  // expression, the compiler will be able to replace this with a constant,
-  // otherwise it'll get expensive (division and such).
-  static cycle_t ms_to_cycles(unsigned short ms) {
-    return ms * (F_CPU / 1024/*prescaler*/) / 1000/*ms*/;
-  }
+// Converts milliseconds into clock cycles. If you provide a constant
+// expression, the compiler will be able to replace this with a constant,
+// otherwise it'll get expensive (division and such).
+static cycle_t ms_to_cycles(unsigned short ms) {
+  return ms * (F_CPU / 1024/*prescaler*/) / 1000/*ms*/;
+}
 } // end namespace Clock
 
 class Screen {

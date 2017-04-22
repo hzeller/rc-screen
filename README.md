@@ -10,21 +10,23 @@ Reacts on remote control signal from Epson EMP-TW600 projector.
    - OFF button brings screen up (projector off, screen up)
 
 Also, the ON button in fact toggles the screen - that way it is possible to
-move up the screen while the projector stays on (in my case, the screen covers a sliding door, so that
-is convenient :) )
+move up the screen while the projector stays on (in my case, the screen covers
+a sliding door, so that is convenient :) )
 
 Inputs
 ------
 
    - IR-receiver (some common TSOP38 or similar)
-   - rotation detector (cny77) (via Schmitt-Trigger input)
+   - rotation detector of an encoder wheel via reflective optical sensor (CNY70)
+     (via "software defined" Schmitt-Trigger input: using a comparator and a
+      digital output to bias that).
    - end-switch
 
 Outputs
 -------
 
    - motor driver in h-bridge configuration (754410 or similar)
-   - bias-output for cny77 Schmitt-Trigger input.
+   - bias-output for CNY70 Schmitt-Trigger input.
    - status LED
 
 The encoder wheel is written in PostScript
